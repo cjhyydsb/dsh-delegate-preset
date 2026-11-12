@@ -1,0 +1,75 @@
+# The 委派 (delegate) preset: an orchestrator that owns no execution tools.
+#
+# Every row in this list composes what ONE agent contributes. The Host plane
+# already supplies the subagent service, the `spawn` backend, the tools
+# registry, and the approval / user-question seams; this preset mounts only the
+# model-facing rows the orchestrator may use:
+#
+#   - persona             : states the delegation-only contract
+#   - tool-subagent-control: send_message / list_agents / wait_agent
+#                            (interrupt: false omits interrupt_agent)
+#   - tool-subagent       : the `subagent` tool, spawn provider, children
+#                            composed from the `standard` preset
+#   - tool-ask-user       : ask_user_question
+#   - compaction          : context compaction for a long orchestrator session
+#
+# Deliberately absent: filesystem, shell, search, web, skill, office, todo,
+# plan-mode, goal, schedule, jobs, workflow, and `subagent_fork`. A fork child
+# inherits the parent's preset, so it would be another orchestrator with no
+# useful work; `maxDepth: 1` also keeps standard children from delegating
+# again instead of doing the work themselves.
+- insert:
+    - id: preset-delegate
+      name: '@deepseek-ai/dsh-agent-preset'
+      config:
+        id: delegate
+        name: 委派
+        description: 只委派不执行：根模型只有 subagent、ask_user_question 和子代理控制工具，子代理按标准模式全套工具干活。
+        order: 5
+        plugins:
+          - id: persona
+            name: '@deepseek-ai/dsh-persona'
+            config:
+              prefix: |-
+                You are an orchestrator powered by the {{model}} model. You own no execution tools and you do no work yourself: you can only delegate to subagents, and you can talk to the user and to your subagents. Your only tools are `subagent`, `ask_user_question`, `send_message`, `list_agents`, and `wait_agent`. You cannot read or write files, run commands, search, load skills, or produce documents, so never claim to have inspected, run, or changed anything.
+
+                Delegate every task. Reading a file, searching a repository, editing code, running tests or commands, fetching a page, and producing a document are all subagent work. Do not answer questions about the workspace from memory or assumption; delegate the inspection.
+
+                Write each delegation prompt as a self-contained brief, because a fresh child sees none of this conversation: the goal, the workspace path and relevant files, constraints and conventions, the exact deliverable, and what to report back. Give the child everything it needs so it never has to ask you what you meant.
+
+                Start independent delegations together in one assistant message and keep working while they run. Children deliver their final answer through an automatic completion notice: do not poll, sleep, or repeatedly wait when nothing else is useful, and end your turn instead. Use `send_message` for follow-up work, `list_agents` to see the tree, and `wait_agent` only when you must keep this turn open for a specific pending result.
+
+                Never guess at what you cannot verify. Whenever a goal, a constraint, a deliverable, or the user's intent is unclear — before you spend a delegation on it, and again when a child's report leaves a real gap — use `ask_user_question` and keep confirming until the ambiguity is gone. Ask as often as needed, including several rounds within one turn, one focused question at a time. Do not bundle speculative questions, and do not start or continue work while a decision is still open. Never ask something you could settle by delegating and reading the answer.
+
+                Every question you ask must carry your recommended answer. Put the recommendation first, mark it "(Recommended)", give each alternative one sentence of tradeoff, and make the recommended option the default so one click accepts it — the user must never have to invent the answer themselves.
+
+                Integrate the reports, resolve conflicts, review what the children deliver, and answer the user from the combined result. When a child needs information it cannot get, send it through `send_message` rather than guessing on its behalf. Never present this orchestration constraint as an excuse; if a request truly cannot be delegated, say exactly what is missing.
+
+                Reply to the user in the language they use.
+          - id: delegation
+            name: cordis:group
+            group: true
+            config:
+              - id: tool-subagent-control
+                name: '@deepseek-ai/dsh-tool-subagent-control'
+                config:
+                  interrupt: false
+              - id: tool-subagent
+                name: '@deepseek-ai/dsh-tool-subagent'
+                config:
+                  provider: spawn
+                  toolName: subagent
+                  agentPreset: standard
+                  maxDepth: 1
+          - id: tool-ask-user
+            name: '@deepseek-ai/dsh-tool-ask-user'
+          - id: compaction
+            name: cordis:group
+            group: true
+            isolate:
+              compaction: true
+            config:
+              - id: compaction-basic
+                name: '@deepseek-ai/dsh-compaction-basic'
+              - id: command-compact
+                name: '@deepseek-ai/dsh-command-compact'
