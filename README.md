@@ -48,17 +48,69 @@ git clone https://github.com/cjhyydsb/dsh-delegate-preset.git
 2. 粘贴 clone 下来的**目录绝对路径** → **Install** → **Enable**
 3. **新建会话** → 模式选择器 → 「委派」
 
-### 让 agent / LLM 自己部署
+> 不要把私有仓库 URL 直接粘进 Add plugin —— 那需要 GitHub 凭据，而且把 token 拼进 URL 更不可取。
 
-不想手动点的话，把这个仓库的路径丢给一个 DSH agent，让它照 **[`DEPLOY.md`](DEPLOY.md)** 执行（仓库根的 `AGENTS.md` 会自动把它引到这份指令）。核心就一步：
+## 给 agent / LLM 的部署指令
 
+如果你是一个被要求「把这个仓库装到 DSH」的 agent，照这一节执行，不要凭记忆猜命令；人类用户可以跳过。
+
+**红线**：不要手工编辑 profile 的 `package.json` / `cordis.patch.yml`，不要在 profile 目录里跑 `pnpm` —— 安装、启用、卸载全部走 `plugin_manager`。不要写任何 token 或密钥进文件。预设只影响**新建会话**，不要承诺已有会话立刻改变；也不要替用户改「新会话默认预设」，除非用户明确要求。
+
+**0. 前置检查** —— 先确认这个 profile 支持 agent preset：
+
+```text
+cordis_inspect_query(platform: "host", provider: "Config", method: "listConfigs",
+                     input: { name: "@deepseek-ai/dsh-agent-preset" })
 ```
+
+返回里应有 `preset-standard`、`preset-ptc`、`preset-minimal`、`preset-cordis` 四行（`status: "schema"`）。一条都没有，说明这不是 Web/Desktop profile（headless / SDK / ACP 没有预设体系），到此停止并如实告诉用户。同时记下本目录的**绝对路径**。
+
+**1. 安装**
+
+```text
 plugin_manager(action: "install_bundle", target: "<本目录绝对路径>")
 ```
 
-`DEPLOY.md` 里写清了：安装前怎么确认这个 profile 支持预设、期望的返回值、怎么核对 `preset-delegate` 行已 `active`、哪些事不许做（手改 profile、在 profile 里跑 pnpm）、常见失败对照表，以及最后必须交还给你验收的清单。
+期望返回：`application: "applied"`、`enabled: true`、`warnings: []`、`bundle: "dsh-delegate-preset"`。
 
-> 不要把私有仓库 URL 直接粘进 Add plugin —— 那需要 GitHub 凭据，而且把 token 拼进 URL 更不可取。
+- 返回 `error.code: "already-installed"`：已经装过；要重载改动就先 `remove_bundle` 再 `install_bundle`。
+- 返回 `application: "failed"`：读诊断按第 4 节处理，**不要**改动 profile 文件。
+- 安装会执行插件代码，可能需要 Full access 或用户批准 —— 走正常批准流程，不要绕过。
+
+**2. 验证**
+
+a) 声明行存在：
+
+```text
+cordis_inspect_query(platform: "host", provider: "Config", method: "listConfigs",
+                     input: { name: "@deepseek-ai/dsh-agent-preset" })
+```
+
+应多出 `patchId: "preset-delegate"`、`status: "schema"`。
+
+b) 行已激活（可选）：
+
+```text
+plugin_manager(action: "list_plugins", limit: 100, offset: <翻页>)
+```
+
+翻页直到出现 `entryId: "include:preset-delegate"`，要求 `enabled: true` 且 `fiberPhase: "active"`。内置预设行与本次安装的 bundle 行通常排在列表末尾（`total` 两三百，一次 100 条，从 `offset: 200` 起翻最快）。
+
+**3. 交还用户验收** —— agent 自己开不了「委派」模式的新会话，最后一步必须交给用户：新建会话 → 选「委派」→ 工具表应只有 `subagent`、`ask_user_question`、`send_message`、`list_agents`、`wait_agent`（部分安装另外带 harness 级 `working_directory`、`load_workspace_dependencies`）→ 让它读文件应派子代理 → 给它模糊需求应先提问且带 `(Recommended)`。不要替用户宣称「已经可用」。
+
+**4. 常见失败**
+
+| 现象 | 原因 | 处理 |
+|---|---|---|
+| `already-installed` | 已装过 | `remove_bundle(target: "dsh-delegate-preset")` 后重装 |
+| `application: "failed"` + 诊断 | 插件名/字段与当前 DSH 不匹配（例如 `agentPreset`、`maxDepth` 被拒） | 按诊断修 `cordis.patch.yml` 后重装；不要改 profile |
+| 委派时报 `standard` 预设不存在 | 安装里没有 id 为 `standard` 的预设 | 保留/恢复 standard，或把 `agentPreset` 改成实际存在的预设 id |
+| 模式选择器里没有「委派」 | 不是 Web/Desktop profile，或装了没启用 | 换 profile；检查第 2 节 b |
+| 页面看不到 | 浏览器端名单需要刷新 | 刷新页面后重看 Plugins / 模式选择器 |
+
+**5. 更新与卸载**：更新 = `git pull`（或改文件）→ `remove_bundle(target: "dsh-delegate-preset")` → `install_bundle(target: "<目录>")`；卸载 = `plugin_manager(action: "remove_bundle", target: "dsh-delegate-preset")`。
+
+**6. 改配置只改** `cordis.patch.yml` 的几处：见下文「自定义」。
 
 ## 第一次用怎么验证
 
