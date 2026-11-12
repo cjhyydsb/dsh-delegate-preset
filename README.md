@@ -48,7 +48,15 @@ git clone https://github.com/cjhyydsb/dsh-delegate-preset.git
 2. 粘贴 clone 下来的**目录绝对路径** → **Install** → **Enable**
 3. **新建会话** → 模式选择器 → 「委派」
 
-也可以让带 `plugin_manager` 工具的 agent 安装：`install_bundle`，`target` 为该目录的绝对路径。
+### 让 agent / LLM 自己部署
+
+不想手动点的话，把这个仓库的路径丢给一个 DSH agent，让它照 **[`DEPLOY.md`](DEPLOY.md)** 执行（仓库根的 `AGENTS.md` 会自动把它引到这份指令）。核心就一步：
+
+```
+plugin_manager(action: "install_bundle", target: "<本目录绝对路径>")
+```
+
+`DEPLOY.md` 里写清了：安装前怎么确认这个 profile 支持预设、期望的返回值、怎么核对 `preset-delegate` 行已 `active`、哪些事不许做（手改 profile、在 profile 里跑 pnpm）、常见失败对照表，以及最后必须交还给你验收的清单。
 
 > 不要把私有仓库 URL 直接粘进 Add plugin —— 那需要 GitHub 凭据，而且把 token 拼进 URL 更不可取。
 
