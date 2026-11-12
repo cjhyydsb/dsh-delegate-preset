@@ -1,0 +1,17 @@
+{
+  "name": "dsh-delegate-preset",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "DeepSeek Harness agent preset 委派 (delegate): a delegate-only orchestrator whose subagents run the standard preset.",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/cjhyydsb/dsh-delegate-preset.git"
+  },
+  "license": "MIT",
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    }
+  }
+}
